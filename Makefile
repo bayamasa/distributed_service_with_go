@@ -1,10 +1,15 @@
+.PHONY: compile
 compile:
-  protoc api/v1/*.proto \
-  --go_out=. \
-  --go_opt=paths=source_relative \
-  --go-grpc_out=. \
-  --go-grpc_opt=paths=source_relative \
-  --proto_path=.
+		protoc api/v1/*.proto \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=. \
+		--go-grpc_opt=paths=source_relative \
+		--proto_path=.
 
 test:
-	go test -v -race ./...
+		go test -v -race ./...
+
+.PHONY: fmt
+fmt:
+		go fmt ./...

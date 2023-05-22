@@ -1,7 +1,6 @@
 package log
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path"
@@ -15,12 +14,12 @@ import (
 
 type Log struct {
 	mu sync.RWMutex
-	
-	Dir string
+
+	Dir    string
 	Config Config
-	
+
 	activeSegment *segment
-	segments []*segment
+	segments      []*segment
 }
 
 func NewLog(dir string, c Config) (*Log, error) {
@@ -31,7 +30,7 @@ func NewLog(dir string, c Config) (*Log, error) {
 		c.Segment.MaxIndexBytes = 1024
 	}
 	l := &Log{
-		Dir: dir,
+		Dir:    dir,
 		Config: c,
 	}
 	return l, l.setup()
@@ -76,12 +75,12 @@ func (l *Log) setup() error {
 func (l *Log) Append(record *api.Record) (uint64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	
+
 	highestOffset, err := l.highesOffset()
 	if err != nil {
 		return 0, err
 	}
-	
+
 	if l.activeSegment.IsMaxed() {
 		if err = l.newSegment(highestOffset + 1); err != nil {
 			return 0, err
@@ -97,7 +96,7 @@ func (l *Log) Append(record *api.Record) (uint64, error) {
 func (l *Log) Read(off uint64) (*api.Record, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	
+
 	var s *segment
 	for _, segment := range l.segments {
 		if segment.baseOffset <= off && off < segment.nextOffset {
@@ -106,7 +105,7 @@ func (l *Log) Read(off uint64) (*api.Record, error) {
 		}
 	}
 	if s == nil {
-		return nil, fmt.Errorf("offset out of range: %d", off)
+		return nil, api.ErrOffsetOutOfRange{Offset: off}
 	}
 	return s.Read(off)
 }
@@ -149,7 +148,7 @@ func (l *Log) HighestOffset() (uint64, error) {
 }
 
 func (l *Log) highesOffset() (uint64, error) {
-	off := l.segments[len(l.segments) - 1].nextOffset
+	off := l.segments[len(l.segments)-1].nextOffset
 	if off == 0 {
 		return 0, nil
 	}
@@ -159,10 +158,10 @@ func (l *Log) highesOffset() (uint64, error) {
 func (l *Log) Truncate(lowest uint64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	
+
 	var segments []*segment
 	for _, s := range l.segments {
-		if s.nextOffset <= lowest + 1 {
+		if s.nextOffset <= lowest+1 {
 			// loewst + 1よりも小さいオフセットを持つセグメントは削除する
 			if err := s.Remove(); err != nil {
 				return err
@@ -178,7 +177,7 @@ func (l *Log) Truncate(lowest uint64) error {
 func (l *Log) Reader() io.Reader {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	
+
 	readers := make([]io.Reader, len(l.segments))
 	for i, s := range l.segments {
 		readers[i] = &originReader{s.store, 0}

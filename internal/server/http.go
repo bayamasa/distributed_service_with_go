@@ -53,13 +53,13 @@ func (s *httpServer) handleProduce(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	offset, err := s.Log.Append(req.Record)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	res := ProduceResponse{Offset: offset}
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
@@ -76,13 +76,13 @@ func (s *httpServer) handleConsume(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	record, err := s.Log.Read(req.Offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	res := ConsumeResponse{Record: record}
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
@@ -90,4 +90,3 @@ func (s *httpServer) handleConsume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-		

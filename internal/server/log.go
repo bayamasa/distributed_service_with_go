@@ -40,4 +40,3 @@ type Record struct {
 }
 
 var ErrOffsetNotFound = fmt.Errorf("offset not found")
-

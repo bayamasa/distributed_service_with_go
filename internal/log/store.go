@@ -17,8 +17,8 @@ const (
 
 type store struct {
 	*os.File
-	mu sync.Mutex
-	buf *bufio.Writer
+	mu   sync.Mutex
+	buf  *bufio.Writer
 	size uint64
 }
 
@@ -30,14 +30,14 @@ func newStore(f *os.File) (*store, error) {
 	return &store{
 		File: f,
 		size: uint64(fi.Size()),
-		buf: bufio.NewWriter(f),
+		buf:  bufio.NewWriter(f),
 	}, nil
 }
 
 func (s *store) Append(p []byte) (n uint64, pos uint64, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	pos = s.size
 	if err := binary.Write(s.buf, enc, uint64(len(p))); err != nil {
 		return 0, 0, err
@@ -46,7 +46,7 @@ func (s *store) Append(p []byte) (n uint64, pos uint64, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	// binary.Writeで書き込んだ分のバイト数を加算 
+	// binary.Writeで書き込んだ分のバイト数を加算
 	w += lenWidth
 	s.size += uint64(w)
 	return uint64(w), pos, nil
@@ -55,7 +55,7 @@ func (s *store) Append(p []byte) (n uint64, pos uint64, err error) {
 func (s *store) Read(pos uint64) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if err := s.buf.Flush(); err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s *store) Read(pos uint64) ([]byte, error) {
 	}
 	b := make([]byte, enc.Uint64(size))
 	// Readの位置をlenWidth分ずらす
-	if _, err := s.File.ReadAt(b, int64(pos + lenWidth)); err != nil {
+	if _, err := s.File.ReadAt(b, int64(pos+lenWidth)); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -74,7 +74,7 @@ func (s *store) Read(pos uint64) ([]byte, error) {
 func (s *store) ReadAt(p []byte, off int64) (n int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if err := s.buf.Flush(); err != nil {
 		return 0, err
 	}
@@ -84,7 +84,7 @@ func (s *store) ReadAt(p []byte, off int64) (n int, err error) {
 func (s *store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	err := s.buf.Flush()
 	if err != nil {
 		return err
