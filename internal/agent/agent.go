@@ -29,7 +29,6 @@ type Agent struct {
 	membership *discovery.Membership
 
 	shutdown     bool
-	shutdowns    chan struct{}
 	shutdownLock sync.Mutex
 }
 
@@ -56,8 +55,7 @@ func (c Config) RPCAddr() (string, error) {
 
 func New(config Config) (*Agent, error) {
 	a := &Agent{
-		Config:    config,
-		shutdowns: make(chan struct{}),
+		Config: config,
 	}
 	setup := []func() error{
 		a.setupLogger,
@@ -113,6 +111,7 @@ func (a *Agent) setupLog() error {
 	)
 	logConfig.Raft.LocalID = raft.ServerID(a.Config.NodeName)
 	logConfig.Raft.Bootstrap = a.Config.Bootstrap
+	logConfig.Raft.CommitTimeout = 1000 * time.Millisecond
 	var err error
 	a.log, err = log.NewDistributedLog(
 		a.Config.DataDir,
@@ -133,8 +132,9 @@ func (a *Agent) setupServer() error {
 		a.Config.ACLPolicyFile,
 	)
 	serverConfig := &server.Config{
-		CommitLog:  a.log,
-		Authorizer: authorizer,
+		CommitLog:   a.log,
+		Authorizer:  authorizer,
+		GetServerer: a.log,
 	}
 	var opts []grpc.ServerOption
 	if a.Config.ServerTLSConfig != nil {
@@ -153,7 +153,7 @@ func (a *Agent) setupServer() error {
 			_ = a.Shutdown()
 		}
 	}()
-	return err
+	return nil
 }
 
 func (a *Agent) setupMembership() error {
@@ -177,7 +177,6 @@ func (a *Agent) Shutdown() error {
 		return nil
 	}
 	a.shutdown = true
-	close(a.shutdowns)
 
 	shutdown := []func() error{
 		a.membership.Leave,
@@ -197,6 +196,7 @@ func (a *Agent) Shutdown() error {
 
 func (a *Agent) serve() error {
 	if err := a.mux.Serve(); err != nil {
+		_ = a.Shutdown()
 		return err
 	}
 	return nil

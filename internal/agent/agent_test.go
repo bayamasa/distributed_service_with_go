@@ -11,6 +11,7 @@ import (
 	api "github.com/bayamasa/proglog/api/v1"
 	"github.com/bayamasa/proglog/internal/agent"
 	"github.com/bayamasa/proglog/internal/config"
+	"github.com/bayamasa/proglog/internal/loadbalance"
 	"github.com/stretchr/testify/require"
 	"github.com/travisjeffery/go-dynaport"
 	"google.golang.org/grpc"
@@ -48,11 +49,15 @@ func TestAgent(t *testing.T) {
 
 		var startJoinAddrs []string
 		if i != 0 {
-			startJoinAddrs = append(startJoinAddrs, agents[0].Config.BindAddr)
+			startJoinAddrs = append(
+				startJoinAddrs,
+				agents[0].Config.BindAddr,
+			)
 		}
 
 		agent, err := agent.New(agent.Config{
-			NodeName:        fmt.Sprintf("agent-%d", i),
+			NodeName:        fmt.Sprintf("-%d", i),
+			StartJoinAddrs:  startJoinAddrs,
 			BindAddr:        bindAddr,
 			RPCPort:         rpcPort,
 			DataDir:         dataDir,
@@ -85,7 +90,21 @@ func TestAgent(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	// レプリケーションが完了するまで待つ
+	time.Sleep(3 * time.Second)
+
 	consumeResponse, err := leaderClient.Consume(
+		context.Background(),
+		&api.ConsumeRequest{
+			Offset: produceResponse.Offset,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, consumeResponse.Record.Value, []byte("foo"))
+
+	followerClient := client(t, agents[1], peerTLSConfig)
+
+	consumeResponse, err = followerClient.Consume(
 		context.Background(),
 		&api.ConsumeRequest{
 			Offset: produceResponse.Offset,
@@ -105,7 +124,6 @@ func TestAgent(t *testing.T) {
 	got := status.Code(err)
 	want := status.Code(api.ErrOffsetOutOfRange{}.GRPCStatus().Err())
 	require.Equal(t, got, want)
-
 }
 
 func client(
@@ -118,7 +136,11 @@ func client(
 	rpcAddr, err := agent.Config.RPCAddr()
 	require.NoError(t, err)
 
-	conn, err := grpc.Dial(rpcAddr, opts...)
+	conn, err := grpc.Dial(fmt.Sprintf(
+		"%s:///%s",
+		loadbalance.Name,
+		rpcAddr,
+	), opts...)
 	require.NoError(t, err)
 
 	return api.NewLogClient(conn)
