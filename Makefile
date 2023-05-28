@@ -55,6 +55,9 @@ test: $(CONFIG_PATH)/model.conf $(CONFIG_PATH)/policy.csv
 .PHONY: fmt
 fmt:
 		go fmt ./...
-		
+
+TAG ?= 0.0.1
+build-docker:
+		docker build -t github.com/bayamasa/proglog:${TAG} .
 
 
